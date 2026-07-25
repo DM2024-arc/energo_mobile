@@ -1,29 +1,33 @@
 import 'package:flutter/material.dart';
 import '../config/theme.dart';
 import '../config/countries.dart';
-import 'package:flutter/gestures.dart';
 import '../services/auth_service.dart';
-import 'register_screen.dart';
-import 'main_shell.dart';
+import 'home_screen.dart';
 
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
-  final _phoneCtrl = TextEditingController();
-  final _passCtrl  = TextEditingController();
+class _RegisterScreenState extends State<RegisterScreen> {
+  final _nameCtrl   = TextEditingController();
+  final _phoneCtrl  = TextEditingController();
+  final _passCtrl   = TextEditingController();
+  final _pass2Ctrl  = TextEditingController();
   Country _country = kCountries.first;
-  bool _obscure = true;
+  bool _obscure1 = true;
+  bool _obscure2 = true;
+  bool _cgu = false;
   bool _loading = false;
 
   @override
   void dispose() {
+    _nameCtrl.dispose();
     _phoneCtrl.dispose();
     _passCtrl.dispose();
+    _pass2Ctrl.dispose();
     super.dispose();
   }
 
@@ -45,21 +49,57 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _login() async {
-    final digits = _phoneCtrl.text.replaceAll(RegExp(r'\D'), '');
-    if (digits.length != 9 || _passCtrl.text.isEmpty) {
-      _showError('Veuillez remplir tous les champs obligatoires');
-      return;
+  void _showError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(msg), backgroundColor: context.energoColors.red),
+    );
+  }
+
+  String _friendlyError(String raw) {
+    final msg = raw.toLowerCase();
+    if (msg.contains('409') || msg.contains('exist') || msg.contains('already')) {
+      return 'Un compte existe déjà avec ce numéro — connectez-vous ou utilisez un autre numéro';
     }
-    if (_passCtrl.text.length < 8) {
-      _showError('Mot de passe trop court — minimum 8 caractères requis');
-      return;
+    if (msg.contains('socketexception') || msg.contains('failed host lookup') ||
+        msg.contains('connection')) {
+      return 'Connexion au serveur impossible — vérifiez votre connexion Internet';
+    }
+    return raw.replaceAll('Exception: ', '');
+  }
+
+  Future<void> _register() async {
+    final digits = _phoneCtrl.text.replaceAll(RegExp(r'\D'), '');
+    final pass   = _passCtrl.text;
+
+    if (digits.length != 9) {
+      return _showError("Numéro invalide — saisissez exactement 9 chiffres");
+    }
+    if (pass.isEmpty) {
+      return _showError("Le mot de passe est obligatoire");
+    }
+    if (pass.length < 8) {
+      return _showError("Mot de passe trop court — minimum 8 caractères requis");
+    }
+    if (!RegExp(r'[A-Z]').hasMatch(pass)) {
+      return _showError("Le mot de passe doit contenir au moins une majuscule (ex: Oko@2021)");
+    }
+    if (!RegExp(r'[0-9]').hasMatch(pass)) {
+      return _showError("Le mot de passe doit contenir au moins un chiffre (ex: Oko@2021)");
+    }
+    if (!RegExp(r'[^A-Za-z0-9]').hasMatch(pass)) {
+      return _showError("Le mot de passe doit contenir au moins un caractère spécial (ex: @, #, !)");
+    }
+    if (pass != _pass2Ctrl.text) {
+      return _showError("Les mots de passe ne correspondent pas");
+    }
+    if (!_cgu) {
+      return _showError("Veuillez accepter les conditions d'utilisation");
     }
 
     setState(() => _loading = true);
     try {
       final fullPhone = _country.code + digits;
-      await AuthService.login(fullPhone, _passCtrl.text);
+      await AuthService.register(_nameCtrl.text.trim(), fullPhone, pass);
 
       if (!mounted) return;
 
@@ -71,42 +111,20 @@ class _LoginScreenState extends State<LoginScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(prenom.isNotEmpty ? 'Bienvenue $prenom !' : 'Connexion réussie !'),
+          content: Text('Compte créé avec succès ! Bienvenue $prenom 🎉'),
           backgroundColor: context.energoColors.primary,
         ),
       );
 
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => MainShell(profile: profile)),
+        MaterialPageRoute(builder: (_) => HomeScreen(profile: profile)),
       );
     } catch (e) {
       _showError(_friendlyError(e.toString()));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
-  }
-
-  String _friendlyError(String raw) {
-    final msg = raw.toLowerCase();
-    if (msg.contains('401') || msg.contains('unauthorized') ||
-        msg.contains('invalid') || msg.contains('incorrect')) {
-      return 'Numéro ou mot de passe incorrect — vérifiez et réessayez';
-    }
-    if (msg.contains('404') || msg.contains('not found')) {
-      return 'Aucun compte trouvé avec ce numéro — vérifiez ou créez un compte';
-    }
-    if (msg.contains('socketexception') || msg.contains('failed host lookup') ||
-        msg.contains('connection')) {
-      return 'Connexion au serveur impossible — vérifiez votre connexion Internet';
-    }
-    return raw.replaceAll('Exception: ', '');
-  }
-
-  void _showError(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: context.energoColors.red),
-    );
   }
 
   @override
@@ -119,7 +137,7 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Text('← Retour', style: TextStyle(color: c.primary)),
         ),
         leadingWidth: 100,
-        title: const Text('Connexion', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Inscription', style: TextStyle(fontWeight: FontWeight.bold)),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -127,17 +145,26 @@ class _LoginScreenState extends State<LoginScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 16),
-              const Center(
-                child: Text('Bon retour 👋',
-                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.w900)),
-              ),
               const SizedBox(height: 8),
+              const Center(
+                child: Text('Créer un compte',
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+              ),
               Center(
-                child: Text('Connectez-vous pour louer une batterie',
+                child: Text('Rejoignez ENERGO Congo',
                     style: TextStyle(color: c.textSecondary, fontSize: 14)),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
+
+              Text('NOM COMPLET',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.textSecondary)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _nameCtrl,
+                style: TextStyle(color: c.textPrimary),
+                decoration: const InputDecoration(hintText: 'Jean Mbemba'),
+              ),
+              const SizedBox(height: 16),
 
               Text.rich(TextSpan(children: [
                 TextSpan(text: 'TÉLÉPHONE ', style: TextStyle(
@@ -194,32 +221,53 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 8),
               TextField(
                 controller: _passCtrl,
-                obscureText: _obscure,
+                obscureText: _obscure1,
                 style: TextStyle(color: c.textPrimary),
                 decoration: InputDecoration(
                   hintText: 'Minimum 8 caractères',
                   suffixIcon: IconButton(
-                    icon: Text(_obscure ? '👁' : '🙈'),
-                    onPressed: () => setState(() => _obscure = !_obscure),
+                    icon: Text(_obscure1 ? '👁' : '🙈'),
+                    onPressed: () => setState(() => _obscure1 = !_obscure1),
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 4),
+              Text('Ex: Oko@2021 (majuscule, chiffre, symbole)',
+                  style: TextStyle(color: c.textSecondary, fontSize: 12)),
+              const SizedBox(height: 16),
+
+              Text.rich(TextSpan(children: [
+                TextSpan(text: 'CONFIRMER LE MOT DE PASSE ', style: TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.bold, color: c.textSecondary)),
+                TextSpan(text: '★', style: TextStyle(color: c.red)),
+              ])),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _pass2Ctrl,
+                obscureText: _obscure2,
+                style: TextStyle(color: c.textPrimary),
+                decoration: InputDecoration(
+                  hintText: 'Répétez le mot de passe',
+                  suffixIcon: IconButton(
+                    icon: Text(_obscure2 ? '👁' : '🙈'),
+                    onPressed: () => setState(() => _obscure2 = !_obscure2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
 
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text.rich(TextSpan(children: [
-                    TextSpan(text: '★ ', style: TextStyle(color: c.red)),
-                    TextSpan(text: 'Champ obligatoire',
-                        style: TextStyle(color: c.textSecondary, fontSize: 12)),
-                  ])),
-                  GestureDetector(
-                    onTap: () {
-                      // TODO: navigation vers forgot-password
-                    },
-                    child: Text('Mot de passe oublié ?',
-                        style: TextStyle(color: c.primary, fontSize: 13)),
+                  Checkbox(
+                    value: _cgu,
+                    activeColor: c.primary,
+                    onChanged: (v) => setState(() => _cgu = v ?? false),
+                  ),
+                  Expanded(
+                    child: Text(
+                      "J'accepte les conditions d'utilisation",
+                      style: TextStyle(color: c.textSecondary, fontSize: 13),
+                    ),
                   ),
                 ],
               ),
@@ -228,49 +276,17 @@ class _LoginScreenState extends State<LoginScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _loading ? null : _login,
+                  onPressed: _loading ? null : _register,
                   child: _loading
                       ? const SizedBox(
                           height: 20, width: 20,
                           child: CircularProgressIndicator(
                               strokeWidth: 2, color: Colors.black),
                         )
-                      : const Text('Se connecter'),
+                      : const Text('Créer mon compte'),
                 ),
               ),
-              const SizedBox(height: 20),
-
-              Row(children: [
-                Expanded(child: Divider(color: c.surface700)),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Text('ou', style: TextStyle(color: c.textSecondary)),
-                ),
-                Expanded(child: Divider(color: c.surface700)),
-              ]),
-              const SizedBox(height: 20),
-
-              Center(
-                child: RichText(
-                  text: TextSpan(
-                    style: TextStyle(color: c.textSecondary, fontSize: 14),
-                    children: [
-                      const TextSpan(text: 'Pas encore de compte ? '),
-                      TextSpan(
-                        text: 'Créer un compte',
-                        style: TextStyle(color: c.primary, fontWeight: FontWeight.bold),
-                        recognizer: TapGestureRecognizer()
-                          ..onTap = () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(builder: (_) => const RegisterScreen()),
-                            );
-                          },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              const SizedBox(height: 24),
             ],
           ),
         ),

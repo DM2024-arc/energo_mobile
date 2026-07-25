@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import '../config/theme.dart';
 import 'login_screen.dart';
+import 'register_screen.dart';
 
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final c = context.energoColors;
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -14,22 +16,39 @@ class SplashScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text('⚡', style: TextStyle(fontSize: 64)),
-              const SizedBox(height: 16),
-              const Text(
+              // Icône splash — pastille arrondie comme .splash-icon
+              Container(
+                width: 96,
+                height: 96,
+                decoration: BoxDecoration(
+                  color: c.primary,
+                  borderRadius: BorderRadius.circular(26),
+                  boxShadow: [
+                    BoxShadow(
+                      color: c.primary.withValues(alpha: 0.4),
+                      blurRadius: 60,
+                    ),
+                  ],
+                ),
+                child: const Center(
+                  child: Text('⚡', style: TextStyle(fontSize: 44)),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
                 'ENERGO',
                 style: TextStyle(
                   fontSize: 36,
                   fontWeight: FontWeight.w900,
-                  color: AppColors.primary,
+                  color: c.primary,
                   letterSpacing: 1,
                 ),
               ),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'Application mobile de location\nde batteries portables',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.gray400, fontSize: 14),
+                style: TextStyle(color: c.textSecondary, fontSize: 14),
               ),
               const SizedBox(height: 48),
               SizedBox(
@@ -49,16 +68,11 @@ class SplashScreen extends StatelessWidget {
                 width: double.infinity,
                 child: OutlinedButton(
                   onPressed: () {
-                    // TODO: navigation vers l'écran register (prochaine étape)
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                    );
                   },
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: AppColors.gray700),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                  ),
                   child: const Text('Créer un compte'),
                 ),
               ),
